@@ -8,6 +8,9 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    // TDD guard 훅(.claude/hooks/tdd-guard.mjs)이 마지막 실행 결과를 읽는다
+    reporters: ["default", "json"],
+    outputFile: { json: ".claude/tdd-guard/test-results.json" },
     coverage: {
       provider: "v8",
       include: ["lib/**/*.ts", "app/api/**/*.ts"],

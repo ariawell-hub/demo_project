@@ -6,3 +6,4 @@ next-env.d.ts
 .playwright-mcp
 /csv/
 /coverage
+/.claude/tdd-guard/
