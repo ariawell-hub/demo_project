@@ -2,9 +2,10 @@
 //
 //   node tdd-guard.mjs pre-tool-use  — Write/Edit 직전에 허용·차단을 판정한다
 //   node tdd-guard.mjs user-prompt   — 사용자가 `tdd-guard on|off|refactor`를 입력하면 모드를 바꾼다
+//   node tdd-guard.mjs status [파일…] — 파일별 허용·차단 여부를 미리 보여 준다 (읽기 전용, npm run tdd:status)
 //
 // 테스트 결과는 vitest.config.mts의 JSON 리포터가 RESULTS_FILE에 남긴다.
-import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -27,7 +28,7 @@ export function testPathFor(relPath) {
   return relPath.replace(/\.ts$/, ".test.ts");
 }
 
-function isGuarded(relPath) {
+export function isGuarded(relPath) {
   return (
     GUARDED_DIRS.some((dir) => relPath.startsWith(dir)) &&
     relPath.endsWith(".ts") &&
@@ -103,22 +104,53 @@ function mtimeOf(file) {
   }
 }
 
-function preToolUse(input, projectDir) {
-  const filePath = input.tool_input?.file_path;
-  if (!filePath) return;
-
-  const relPath = toRel(projectDir, filePath);
-  const testFile = path.join(projectDir, testPathFor(relPath));
+/** 상태·결과·테스트 파일을 읽어 decide()의 입력을 만든다 */
+export function gatherFacts(projectDir, relPath) {
   const resultsFile = path.join(projectDir, RESULTS_FILE);
-  const testMtime = mtimeOf(testFile);
-  const result = decide({
+  const testMtime = mtimeOf(path.join(projectDir, testPathFor(relPath)));
+  return {
     relPath,
     mode: readJson(path.join(projectDir, STATE_FILE))?.mode ?? "on",
     testExists: testMtime != null,
     testMtime,
     resultsMtime: mtimeOf(resultsFile),
     statuses: readStatuses(projectDir, readJson(resultsFile)),
-  });
+  };
+}
+
+export function guardedFiles(projectDir) {
+  return GUARDED_DIRS.flatMap((dir) => {
+    try {
+      return readdirSync(path.join(projectDir, dir), { recursive: true }).map((f) => `${dir}${f.replaceAll("\\", "/")}`);
+    } catch {
+      return [];
+    }
+  })
+    .filter(isGuarded)
+    .sort();
+}
+
+export function statusReport(projectDir, files = []) {
+  const relPaths = files.length ? files.map((f) => toRel(projectDir, f)) : guardedFiles(projectDir);
+  const resultsMtime = mtimeOf(path.join(projectDir, RESULTS_FILE));
+  const lines = [
+    `모드: ${readJson(path.join(projectDir, STATE_FILE))?.mode ?? "on"}`,
+    `마지막 테스트 실행: ${resultsMtime == null ? "없음" : new Date(resultsMtime).toLocaleString("ko-KR")}`,
+    "",
+  ];
+  for (const relPath of relPaths) {
+    const result = decide(gatherFacts(projectDir, relPath));
+    const note = isGuarded(relPath) || relPath.startsWith(DATA_DIR) ? "" : " (가드 대상 아님)";
+    lines.push(`${result.allow ? "허용" : "차단"}  ${relPath}${note}${result.allow ? "" : ` — ${result.reason.replace("TDD guard: ", "")}`}`);
+  }
+  return lines.join("\n");
+}
+
+function preToolUse(input, projectDir) {
+  const filePath = input.tool_input?.file_path;
+  if (!filePath) return;
+
+  const result = decide(gatherFacts(projectDir, toRel(projectDir, filePath)));
   if (result.allow) return;
 
   console.log(
@@ -144,6 +176,12 @@ function userPrompt(input, projectDir) {
 }
 
 async function main() {
+  // status는 터미널에서 직접 실행하므로 stdin을 기다리지 않는다
+  if (process.argv[2] === "status") {
+    console.log(statusReport(process.env.CLAUDE_PROJECT_DIR || process.cwd(), process.argv.slice(3)));
+    return;
+  }
+
   let raw = "";
   for await (const chunk of process.stdin) raw += chunk;
   const input = JSON.parse(raw);

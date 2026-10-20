@@ -5,6 +5,7 @@ import {
   formatMessage,
   guessHost,
   parseKakaoCsv,
+  presetRange,
   toLlmMessages,
   truncateToLimit,
 } from "./parseKakaoCsv";
@@ -94,6 +95,21 @@ describe("filterByRange", () => {
     expect(dates(filterByRange(messages, "", "2026-01-02"))).toEqual(["2026-01-01", "2026-01-02"]);
     expect(dates(filterByRange(messages, "2026-01-03", ""))).toEqual(["2026-01-03", "2026-01-04"]);
     expect(filterByRange(messages, "", "")).toHaveLength(4);
+  });
+});
+
+describe("presetRange", () => {
+  it("마지막 날짜를 포함해 days일을 거슬러 올라간다", () => {
+    expect(presetRange(7, "2026-01-01", "2026-03-10")).toEqual({ start: "2026-03-04", end: "2026-03-10" });
+    expect(presetRange(1, "2026-01-01", "2026-03-10")).toEqual({ start: "2026-03-10", end: "2026-03-10" });
+  });
+
+  it("월과 연도 경계를 넘어간다", () => {
+    expect(presetRange(30, "2025-01-01", "2026-01-15")).toEqual({ start: "2025-12-17", end: "2026-01-15" });
+  });
+
+  it("days가 0이면 전체 기간을 반환한다", () => {
+    expect(presetRange(0, "2026-01-01", "2026-03-10")).toEqual({ start: "2026-01-01", end: "2026-03-10" });
   });
 });
 

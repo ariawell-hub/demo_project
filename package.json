@@ -7,7 +7,11 @@
     "start": "next start",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "analyze:csv": "tsx scripts/analyze-csv.ts",
+    "check:openai": "tsx scripts/check-openai.ts",
+    "tdd:status": "node .claude/hooks/tdd-guard.mjs status",
+    "check:commit": "node scripts/precommit-check.mjs"
   },
   "repository": {
     "type": "git",
@@ -32,6 +36,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitest/coverage-v8": "^5.0.5",
     "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.3",
     "vitest": "^5.0.5"
   },

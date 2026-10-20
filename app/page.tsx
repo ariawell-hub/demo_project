@@ -7,6 +7,7 @@ import {
   guessHost,
   MAX_PROMPT_CHARS,
   parseKakaoCsv,
+  presetRange,
   toLlmMessages,
   truncateToLimit,
 } from "@/lib/parseKakaoCsv";
@@ -26,12 +27,6 @@ const PRIORITY_STYLE: Record<ActionItem["priority"], { label: string; className:
 };
 const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
 
-function shiftDate(date: string, days: number) {
-  const d = new Date(`${date}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-
 export default function Home() {
   const [fileName, setFileName] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -50,8 +45,9 @@ export default function Home() {
   const willTruncate = useMemo(() => truncateToLimit(llmMessages).truncated, [llmMessages]);
 
   function applyPreset(days: number, lastDate = overall.lastDate, firstDate = overall.firstDate) {
-    setStart(days === 0 ? firstDate : shiftDate(lastDate, -(days - 1)));
-    setEnd(lastDate);
+    const range = presetRange(days, firstDate, lastDate);
+    setStart(range.start);
+    setEnd(range.end);
   }
 
   async function handleFile(file: File) {

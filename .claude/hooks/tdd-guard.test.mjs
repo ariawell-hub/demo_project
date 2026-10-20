@@ -1,6 +1,17 @@
+import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
-import { decide, parsePromptMode, readStatuses, testPathFor, toRel } from "./tdd-guard.mjs";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  decide,
+  gatherFacts,
+  guardedFiles,
+  parsePromptMode,
+  readStatuses,
+  statusReport,
+  testPathFor,
+  toRel,
+} from "./tdd-guard.mjs";
 
 const projectDir = path.resolve("/proj");
 
@@ -143,5 +154,75 @@ describe("decide", () => {
     const result = decide({ ...base, mode: "refactor" });
     expect(result.allow).toBe(false);
     expect(result.reason).toContain("tdd-guard on");
+  });
+});
+
+describe("파일 시스템에서 상태 읽기", () => {
+  let dir;
+  const write = (rel, content, mtimeSec) => {
+    const file = path.join(dir, rel);
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, content);
+    if (mtimeSec) utimesSync(file, mtimeSec, mtimeSec);
+  };
+  const results = (statuses) =>
+    JSON.stringify({
+      testResults: Object.entries(statuses).map(([rel, status]) => ({ name: path.join(dir, rel), status })),
+    });
+
+  beforeEach(() => {
+    dir = mkdtempSync(path.join(os.tmpdir(), "tdd-guard-"));
+    write("lib/foo.ts", "");
+    write("lib/foo.test.ts", "", 1000);
+    write("lib/bar.ts", "");
+    write("lib/types.ts", "");
+    write("app/api/analyze/route.ts", "");
+    write("app/page.tsx", "");
+    write(".claude/tdd-guard/test-results.json", results({ "lib/foo.test.ts": "failed" }), 2000);
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  describe("gatherFacts", () => {
+    it("상태 파일·결과 파일·테스트 파일에서 decide 입력을 만든다", () => {
+      write(".claude/tdd-guard/state.json", JSON.stringify({ mode: "refactor" }));
+      expect(gatherFacts(dir, "lib/foo.ts")).toEqual({
+        relPath: "lib/foo.ts",
+        mode: "refactor",
+        testExists: true,
+        testMtime: 1000 * 1000,
+        resultsMtime: 2000 * 1000,
+        statuses: { "lib/foo.test.ts": "failed" },
+      });
+    });
+
+    it("상태 파일이 없으면 on 모드, 테스트 파일이 없으면 testExists false", () => {
+      expect(gatherFacts(dir, "lib/bar.ts")).toMatchObject({ mode: "on", testExists: false, testMtime: null });
+    });
+  });
+
+  describe("guardedFiles", () => {
+    it("lib/와 app/api/ 아래 가드 대상 구현 파일만 정렬해서 돌려준다", () => {
+      expect(guardedFiles(dir)).toEqual(["app/api/analyze/route.ts", "lib/bar.ts", "lib/foo.ts"]);
+    });
+  });
+
+  describe("statusReport", () => {
+    it("모드와 파일별 허용·차단 사유를 보여 준다", () => {
+      const report = statusReport(dir);
+      expect(report).toContain("모드: on");
+      expect(report).toMatch(/허용\s+lib\/foo\.ts/);
+      expect(report).toMatch(/차단\s+lib\/bar\.ts.*lib\/bar\.test\.ts에 실패하는 테스트를 먼저/);
+    });
+
+    it("파일을 지정하면 그 파일만 보여 주고, 가드 대상이 아니면 그렇게 표시한다", () => {
+      const report = statusReport(dir, [path.join(dir, "lib", "types.ts")]);
+      expect(report).toMatch(/허용\s+lib\/types\.ts \(가드 대상 아님\)/);
+      expect(report).not.toContain("lib/foo.ts");
+    });
+
+    it("테스트 결과 파일이 없으면 실행 기록이 없다고 알린다", () => {
+      rmSync(path.join(dir, ".claude/tdd-guard/test-results.json"));
+      expect(statusReport(dir)).toContain("마지막 테스트 실행: 없음");
+    });
   });
 });

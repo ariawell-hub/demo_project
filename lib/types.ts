@@ -8,6 +8,9 @@ export type ChatMessage = {
 export const ACTION_CATEGORIES = ["미답변 질문", "콘텐츠 아이디어", "상품 문의", "운영/공지", "모더레이션"] as const;
 export const PRIORITIES = ["high", "medium", "low"] as const;
 
+// OPENAI_MODEL이 없을 때 쓰는 모델 (route.ts와 scripts/check-openai.ts가 함께 쓴다)
+export const DEFAULT_MODEL = "gpt-5.4-mini";
+
 export type ActionItem = {
   title: string;
   category: (typeof ACTION_CATEGORIES)[number];

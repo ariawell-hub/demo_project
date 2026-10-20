@@ -58,6 +58,17 @@ export function filterByRange(messages: ChatMessage[], start: string, end: strin
   return messages.filter((m) => (!start || m.date >= start) && (!end || m.date <= end));
 }
 
+function shiftDate(date: string, days: number) {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+// "최근 N일" 프리셋 범위: 마지막 날짜를 포함해 N일, 0이면 전체 기간
+export function presetRange(days: number, firstDate: string, lastDate: string) {
+  return { start: days === 0 ? firstDate : shiftDate(lastDate, -(days - 1)), end: lastDate };
+}
+
 // LLM에 보낼 필요가 없는 시스템 행과 미디어 placeholder를 뺀다
 export function toLlmMessages(messages: ChatMessage[]) {
   return messages.filter((m) => m.sender !== SYSTEM_SENDER && m.message && !MEDIA_ONLY.test(m.message));

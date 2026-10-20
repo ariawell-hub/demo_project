@@ -2,10 +2,10 @@
 
 데이터 흐름은 "브라우저에서 파싱 → 서버에서 LLM 호출" 두 단계다.
 
-1. **클라이언트 (`app/page.tsx`, `"use client"`)**: 업로드한 CSV를 브라우저에서 `parseKakaoCsv`로 파싱하고, 기간 필터(`filterByRange`)와 통계(`computeStats`)를 메모리에서 계산한다. 분석 요청 시 `toLlmMessages`로 시스템 메시지와 미디어 placeholder("사진", "이모티콘" 등)를 뺀 메시지 배열을 JSON으로 `/api/analyze`에 보낸다. CSV 원본은 서버로 가지 않는다.
+1. **클라이언트 (`app/page.tsx`, `"use client"`)**: 업로드한 CSV를 브라우저에서 `parseKakaoCsv`로 파싱하고, 기간 프리셋(`presetRange`), 기간 필터(`filterByRange`), 통계(`computeStats`)를 메모리에서 계산한다. 분석 요청 시 `toLlmMessages`로 시스템 메시지와 미디어 placeholder("사진", "이모티콘" 등)를 뺀 메시지 배열을 JSON으로 `/api/analyze`에 보낸다. CSV 원본은 서버로 가지 않는다.
 2. **서버 (`app/api/analyze/route.ts`)**: 받은 메시지를 다시 잘라 OpenAI로 분석하고 `AnalyzeResponse`를 돌려준다. 요청·응답 계약, 결과 스키마, 프롬프트, 환경 변수는 `app/api/CLAUDE.md`에 정리되어 있다.
 
-`lib/parseKakaoCsv.ts`는 클라이언트와 서버가 함께 쓴다. `truncateToLimit`/`formatMessage`가 양쪽에서 같은 기준으로 동작해야 UI의 "잘림 경고"와 실제 서버 동작이 일치한다. Node 전용 API를 넣지 말 것.
+`lib/parseKakaoCsv.ts`는 클라이언트와 서버가 함께 쓴다. `truncateToLimit`/`formatMessage`가 양쪽에서 같은 기준으로 동작해야 UI의 "잘림 경고"와 실제 서버 동작이 일치한다. Node 전용 API를 넣지 말 것. `scripts/analyze-csv.ts`도 같은 함수로 화면의 흐름을 재현하므로, `app/page.tsx`의 계산 로직은 lib에 두고 가져다 쓴다.
 
 `lib/types.ts`의 결과 타입(`AnalysisResult`, `ActionItem`)이나 `ACTION_CATEGORIES`/`PRIORITIES`를 바꿀 때는 `app/api/CLAUDE.md`를 먼저 읽을 것. 스키마·프롬프트·UI에서 함께 고쳐야 할 곳이 정리되어 있다.
 
